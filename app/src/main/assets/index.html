@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>GökAI</title>
+
+<style>
+:root{
+  --bg:#212121;
+  --panel:#303030;
+  --side:#171717;
+  --text:#ececec;
+  --muted:#999;
+  --line:#414141;
+}
+
+*{
+  box-sizing:border-box;
+  -webkit-tap-highlight-color:transparent;
+}
+
+html,body{
+  margin:0;
+  width:100%;
+  height:100%;
+  background:var(--bg);
+  color:var(--text);
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+}
+
+body{
+  overflow:hidden;
+}
+
+button,textarea{
+  font:inherit;
+}
+
+.top{
+  height:58px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 12px;
+  border-bottom:1px solid #292929;
+}
+
+.brand{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+.logo{
+  width:32px;
+  height:32px;
+  border-radius:10px;
+  background:white;
+  display:grid;
+  place-items:center;
+  overflow:hidden;
+  color:#111;
+  font-weight:900;
+}
+
+.logo img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+
+.brandText{
+  display:flex;
+  flex-direction:column;
+}
+
+.title{
+  font-size:18px;
+  font-weight:700;
+}
+
+.status{
+  font-size:11px;
+  color:#888;
+}
+
+.chat{
+  height:calc(100vh - 58px);
+  overflow:auto;
+  padding:15px 13px 190px;
+}
+
+.wrap{
+  max-width:760px;
+  margin:auto;
+}
+
+.welcome{
+  min-height:62vh;
+  display:grid;
+  place-items:center;
+  text-align:center;
+}
+
+.welcomeLogo{
+  width:84px;
+  height:84px;
+  border-radius:24px;
+  background:white;
+  display:grid;
+  place-items:center;
+  color:#111;
+  font-size:34px;
+  font-weight:900;
+  margin:auto;
+}
+
+.welcome h1{
+  margin:17px 0 7px;
+  font-size:29px;
+}
+
+.welcome p{
+  margin:0;
+  color:#969696;
+  font-size:14px;
+}
+
+.msg{
+  display:flex;
+  gap:11px;
+  padding:15px 0;
+}
+
+.avatar{
+  width:31px;
+  height:31px;
+  flex:0 0 31px;
+  border-radius:9px;
+  background:#555;
+  display:grid;
+  place-items:center;
+  font-size:12px;
+  font-weight:700;
+}
+
+.ai .avatar{
+  background:white;
+  color:#111;
+}
+
+.text{
+  font-size:15px;
+  line-height:1.6;
+  white-space:pre-wrap;
+  word-break:break-word;
+}
+
+.sources{
+  margin-top:10px;
+  font-size:12px;
+  line-height:1.45;
+  color:#9b9b9b;
+  border-left:2px solid #555;
+  padding-left:9px;
+}
+
+.composerArea{
+  position:fixed;
+  left:0;
+  right:0;
+  bottom:0;
+  padding:25px 11px 10px;
+  background:
+    linear-gradient(
+      transparent,
+      #212121 26%,
+      #212121
+    );
+}
+
+.filechip{
+  display:none;
+  max-width:760px;
+  margin:0 auto 7px;
+  padding:8px 10px;
+  border-radius:12px;
+  background:#292929;
+  border:1px solid #3c3c3c;
+  font-size:12px;
+}
+
+.modePanel{
+  display:none;
+  max-width:760px;
+  margin:0 auto 7px;
+  gap:7px;
+  flex-wrap:wrap;
+}
+
+.modePanel.show{
+  display:flex;
+}
+
+.mode{
+  border:1px solid #414141;
+  background:#292929;
+  color:#bbb;
+  border-radius:999px;
+  padding:8px 12px;
+  font-size:12px;
+}
+
+.mode.active{
+  background:white;
+  color:#111;
+}
+
+.composer{
+  max-width:760px;
+  margin:auto;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:27px;
+  padding:9px;
+  box-shadow:0 8px 28px rgba(0,0,0,.18);
+}
+
+textarea{
+  width:100%;
+  min-height:42px;
+  max-height:130px;
+  resize:none;
+  background:transparent;
+  border:0;
+  outline:0;
+  color:white;
+  padding:8px;
+  line-height:1.45;
+}
+
+textarea::placeholder{
+  color:#8c8c8c;
+}
+
+.bottomRow{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+
+.leftActions,
+.rightActions{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+
+.round{
+  width:38px;
+  height:38px;
+  border:0;
+  border-radius:50%;
+  background:#262626;
+  color:white;
+  font-size:18px;
+}
+
+.modeCurrent{
+  height:36px;
+  border:0;
+  border-radius:999px;
+  background:#262626;
+  color:#ddd;
+  padding:0 11px;
+}
+
+.send{
+  background:white;
+  color:#111;
+  font-weight:900;
+  font-size:20px;
+}
+
+.webActive{
+  background:white !important;
+  color:#111 !important;
+}
+</style>
+</head>
+
+<body>
+
+<header class="top">
+
+  <div class="brand">
+
+    <div class="logo">
+      G
+    </div>
+
+    <div class="brandText">
+      <div class="title">
+        GökAI
+      </div>
+
+      <div class="status" id="status">
+        Güncel arama hazır
+      </div>
+    </div>
+
+  </div>
+
+  <button
+    class="round"
+    onclick="newChat()"
+  >
+    ＋
+  </button>
+
+</header>
+
+<section
+  class="chat"
+  id="chat"
+>
+
+  <div
+    class="wrap"
+    id="wrap"
+  ></div>
+
+</section>
+
+<div class="composerArea">
+
+  <div
+    class="filechip"
+    id="filechip"
+  ></div>
+
+  <div
+    class="modePanel"
+    id="modePanel"
+  >
+
+    <button
+      class="mode active"
+      data-mode="fast"
+    >
+      ⚡ Hızlı
+    </button>
+
+    <button
+      class="mode"
+      data-mode="think"
+    >
+      🧠 Düşün
+    </button>
+
+    <button
+      class="mode"
+      data-mode="work"
+    >
+      🛠 Çalışma
+    </button>
+
+  </div>
+
+  <div class="composer">
+
+    <textarea
+      id="input"
+      rows="1"
+      placeholder="GökAI'ye sor..."
+    ></textarea>
+
+    <div class="bottomRow">
+
+      <div class="leftActions">
+
+        <button
+          class="round"
+          id="fileBtn"
+        >
+          ＋
+        </button>
+
+        <button
+          class="modeCurrent"
+          id="modeCurrent"
+        >
+          ⚡ Hızlı⌄
+        </button>
+
+      </div>
+
+      <div class="rightActions">
+
+        <button
+          class="round"
+          id="webBtn"
+        >
+          🌐
+        </button>
+
+        <button
+          class="round"
+          id="micBtn"
+        >
+          🎤
+        </button>
+
+        <button
+          class="round send"
+          id="sendBtn"
+        >
+          ↑
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+
+const $ =
+  selector =>
+  document.querySelector(selector);
+
+let mode = "fast";
+
+let forceWeb = false;
+
+let pickedFile = null;
+
+let messages =
+  JSON.parse(
+    localStorage.getItem(
+      "gokai_messages"
+    ) || "[]"
+  );
+
+function escapeHTML(text){
+
+  return String(text)
+    .replace(
+      /[&<>"']/g,
