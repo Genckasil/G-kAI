@@ -1,33 +1,178 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GökAI</title>
-  <style>
-    body{
-      margin:0;
-      background:#111827;
-      color:white;
-      font-family:Arial,sans-serif;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      height:100vh;
-      text-align:center;
-    }
-    .box{
-      padding:24px;
-    }
-    h1{
-      margin-bottom:10px;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GökAI</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:#0f1726;
+  color:white;
+  font-family:Arial,sans-serif;
+  height:100vh;
+  display:flex;
+  flex-direction:column;
+}
+
+header{
+  height:52px;
+  display:flex;
+  align-items:center;
+  padding:0 14px;
+  border-bottom:1px solid #263247;
+  font-weight:bold;
+  font-size:20px;
+}
+
+#chat{
+  flex:1;
+  overflow:auto;
+  padding:15px;
+}
+
+.welcome{
+  text-align:center;
+  margin-top:35%;
+  color:#b8c4d8;
+}
+
+.bottom{
+  padding:10px;
+  border-top:1px solid #263247;
+}
+
+.tools{
+  display:flex;
+  gap:7px;
+  margin-bottom:8px;
+}
+
+button{
+  border:0;
+  border-radius:20px;
+  background:#202d42;
+  color:white;
+  padding:9px 13px;
+}
+
+.inputrow{
+  display:flex;
+  align-items:center;
+  background:#192438;
+  border-radius:25px;
+  padding:5px 7px 5px 14px;
+}
+
+input{
+  flex:1;
+  border:0;
+  outline:0;
+  background:transparent;
+  color:white;
+  font-size:16px;
+  padding:10px 0;
+}
+
+.send{
+  width:42px;
+  height:42px;
+  border-radius:50%;
+  font-size:20px;
+  background:white;
+  color:#111827;
+  padding:0;
+}
+
+.msg{
+  padding:11px 14px;
+  margin:8px 0;
+  border-radius:16px;
+  max-width:88%;
+  line-height:1.4;
+}
+
+.me{
+  background:#2b3b55;
+  margin-left:auto;
+}
+
+.ai{
+  background:#182337;
+}
+</style>
 </head>
+
 <body>
-  <div class="box">
-    <h1>GökAI</h1>
-    <p>Uygulama çalışıyor ✅</p>
+
+<header>GökAI</header>
+
+<div id="chat">
+  <div class="welcome" id="welcome">
+    <h2>Merhaba 👋</h2>
+    <div>Bugün sana nasıl yardımcı olabilirim?</div>
   </div>
+</div>
+
+<div class="bottom">
+
+  <div class="tools">
+    <button onclick="alert('Dosya özelliğini birazdan bağlayacağız')">＋</button>
+    <button id="mode" onclick="changeMode()">Hızlı</button>
+    <button onclick="toggleWeb()" id="web">🌐</button>
+    <button onclick="alert('Ses özelliğini birazdan bağlayacağız')">🎙</button>
+  </div>
+
+  <div class="inputrow">
+    <input id="input" placeholder="GökAI'ye bir şey sor..." autocomplete="off">
+    <button class="send" onclick="send()">↑</button>
+  </div>
+
+</div>
+
+<script>
+let modes=["Hızlı","Düşün","Çalışma"];
+let modeIndex=0;
+let web=false;
+
+function changeMode(){
+  modeIndex=(modeIndex+1)%3;
+  document.getElementById("mode").innerText=modes[modeIndex];
+}
+
+function toggleWeb(){
+  web=!web;
+  document.getElementById("web").style.background =
+    web ? "#3b82f6" : "#202d42";
+}
+
+function send(){
+  const input=document.getElementById("input");
+  const text=input.value.trim();
+  if(!text)return;
+
+  document.getElementById("welcome").style.display="none";
+
+  addMessage(text,"me");
+  input.value="";
+
+  addMessage("AI bağlantısını sıradaki adımda açacağız.","ai");
+}
+
+function addMessage(text,type){
+  const div=document.createElement("div");
+  div.className="msg "+type;
+  div.innerText=text;
+  document.getElementById("chat").appendChild(div);
+  div.scrollIntoView();
+}
+
+document.getElementById("input").addEventListener("keydown",function(e){
+  if(e.key==="Enter")send();
+});
+</script>
+
 </body>
 </html>
