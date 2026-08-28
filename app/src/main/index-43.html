@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>GökAI</title>
+<style>
+:root{--bg:#212121;--panel:#303030;--text:#eee;--muted:#8b8b8b;--line:#414141}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
+body{overflow:hidden}
+button,textarea,input{font:inherit}
+header{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 10px;border-bottom:1px solid #2b2b2b}
+.brand{display:flex;align-items:center;gap:8px;min-width:0}
+.logo{width:30px;height:30px;border-radius:9px;background:#fff;color:#111;display:grid;place-items:center;font-weight:900}
+.btxt{line-height:1.05}.title{font-size:16px;font-weight:750}.status{font-size:10px;color:var(--muted);margin-top:3px}
+.chat{height:calc(100vh - 48px);overflow:auto;padding:12px 14px 172px}
+.empty{height:60vh;display:grid;place-items:center;text-align:center;color:#777}
+.msg{display:flex;gap:10px;margin:14px auto;max-width:780px}
+.avatar{width:30px;height:30px;flex:0 0 30px;border-radius:9px;background:#484848;display:grid;place-items:center;font-size:12px;font-weight:700}
+.ai .avatar{background:#fff;color:#111}
+.text{font-size:15px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
+.composerArea{position:fixed;left:0;right:0;bottom:0;padding:22px 10px 9px;background:linear-gradient(transparent,#212121 24%,#212121)}
+.attachment{display:none;max-width:780px;margin:0 auto 7px;background:#292929;border:1px solid #414141;border-radius:13px;padding:8px 10px;font-size:12px}
+.attachment.show{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.modes{display:none;max-width:780px;margin:0 auto 7px;gap:6px;flex-wrap:wrap}
+.modes.show{display:flex}
+.mode{border:1px solid #444;background:#292929;color:#ccc;border-radius:999px;padding:8px 11px;font-size:12px}
+.mode.active{background:#fff;color:#111}
+.composer{max-width:780px;margin:auto;background:var(--panel);border:1px solid var(--line);border-radius:25px;padding:7px 8px 8px}
+textarea{display:block;width:100%;min-height:39px;max-height:125px;resize:none;background:transparent;border:0;outline:0;color:#fff;padding:7px 8px;font-size:15px;line-height:1.4}
+.row{display:flex;align-items:center;justify-content:space-between}.left,.right{display:flex;align-items:center;gap:5px}
+.round{width:38px;height:38px;border:0;border-radius:50%;background:#272727;color:#fff;font-size:18px}
+.current{height:36px;border:0;border-radius:999px;background:#272727;color:#ddd;padding:0 11px;font-size:13px}
+.send{background:#fff;color:#111;font-weight:900}.activeBtn{background:#fff!important;color:#111!important}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:20;align-items:center;justify-content:center;padding:20px}
+.modal.show{display:flex}.card{width:min(420px,100%);background:#2b2b2b;border:1px solid #444;border-radius:20px;padding:18px}
+.card h3{margin:0 0 8px}.card p{font-size:13px;color:#aaa;line-height:1.45}.key{width:100%;border:1px solid #555;background:#1f1f1f;color:#fff;border-radius:12px;padding:12px;outline:0}
+.save{width:100%;border:0;border-radius:12px;background:#fff;color:#111;padding:11px;margin-top:10px;font-weight:700}
+.settings{font-size:15px}
+</style>
+</head>
+<body>
+
+<header>
+ <div class="brand">
+   <div class="logo">G</div>
+   <div class="btxt"><div class="title">GökAI</div><div class="status" id="status">Hazır</div></div>
+ </div>
+ <button class="round settings" id="settings">⚙</button>
+</header>
+
+<div class="chat" id="chat"></div>
+
+<div class="composerArea">
+ <div class="attachment" id="attachment"><span id="attachName"></span><button class="round" id="removeFile">×</button></div>
+
+ <div class="modes" id="modes">
+   <button class="mode active" data-mode="fast">⚡ Hızlı</button>
+   <button class="mode" data-mode="think">🧠 Düşün</button>
+   <button class="mode" data-mode="work">🛠 Çalışma</button>
+ </div>
+
+ <div class="composer">
+   <textarea id="input" placeholder="GökAI'ye sor..."></textarea>
+   <div class="row">
+     <div class="left">
+       <button class="round" id="file">＋</button>
+       <button class="current" id="current">⚡ Hızlı⌄</button>
+     </div>
+     <div class="right">
+       <button class="round" id="web">🌐</button>
+       <button class="round" id="voice">🎙</button>
+       <button class="round send" id="send">↑</button>
+     </div>
+   </div>
+ </div>
+</div>
+
+<div class="modal" id="modal">
+ <div class="card">
+   <h3>GökAI motorunu bağla</h3>
+   <p>Groq API anahtarını bir kez gir. Anahtar bu telefonda saklanır; GitHub'a yazılmaz.</p>
+   <input class="key" id="apiKey" type="password" placeholder="gsk_...">
+   <button class="save" id="saveKey">Kaydet</button>
+ </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+let mode="fast",webOn=false,voiceOn=false,attachment=null;
+let messages=JSON.parse(localStorage.getItem("gokai_history")||"[]");
+
+function esc(t){return String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function render(){
+ $("#chat").innerHTML=messages.length?messages.map(m=>`
+ <div class="msg ${m.role==="assistant"?"ai":""}">
+  <div class="avatar">${m.role==="assistant"?"G":"S"}</div><div class="text">${esc(m.content)}</div>
+ </div>`).join(""):`<div class="empty"><div><b>GökAI</b><br><small>Bir şey sor, dosya ekle veya sesli konuş.</small></div></div>`;
+ $("#chat").scrollTop=$("#chat").scrollHeight;
+ localStorage.setItem("gokai_history",JSON.stringify(messages.slice(-30)));
+}
+function status(t){$("#status").textContent=t}
+function ensureKey(){
+ try{
+   const k=window.GokAIAndroid?GokAIAndroid.getApiKey():"";
+   if(!k)$("#modal").classList.add("show");
+ }catch(e){$("#modal").classList.add("show")}
+}
+$("#settings").onclick=()=>$("#modal").classList.add("show");
+$("#saveKey").onclick=()=>{
+ const k=$("#apiKey").value.trim();
+ if(!k)return;
+ GokAIAndroid.saveApiKey(k);$("#apiKey").value="";$("#modal").classList.remove("show");status("Motor hazır");
+};
+$("#current").onclick=()=>$("#modes").classList.toggle("show");
+document.querySelectorAll(".mode").forEach(b=>b.onclick=()=>{
+ mode=b.dataset.mode;
+ document.querySelectorAll(".mode").forEach(x=>x.classList.toggle("active",x===b));
+ $("#current").textContent=mode==="fast"?"⚡ Hızlı⌄":mode==="think"?"🧠 Düşün⌄":"🛠 Çalışma⌄";
+ $("#modes").classList.remove("show");
+});
+$("#web").onclick=()=>{webOn=!webOn;$("#web").classList.toggle("activeBtn",webOn);status(webOn?"Güncel web açık":"Hazır")};
+$("#file").onclick=()=>GokAIAndroid.pickFile();
+$("#removeFile").onclick=()=>{attachment=null;$("#attachment").classList.remove("show")};
+$("#voice").onclick=()=>{
+ voiceOn=!voiceOn;$("#voice").classList.toggle("activeBtn",voiceOn);
+ status(voiceOn?"Sesli sohbet açık":"Sesli sohbet kapalı");
+ GokAIAndroid.toggleVoice(voiceOn);
+};
+
+function send(textOverride){
+ const text=(textOverride||$("#input").value).trim(); if(!text)return;
+ const id=Date.now().toString(36)+Math.random().toString(36).slice(2);
+ messages.push({role:"user",content:text});
+ messages.push({role:"assistant",content:"GökAI düşünüyor…",pending:id}); render();
+ $("#input").value="";status(webOn?"Web'de araştırıyor…":"Düşünüyor…");
+ const history=messages.filter(m=>!m.pending).map(m=>({role:m.role,content:m.content}));
+ GokAIAndroid.ask(id,JSON.stringify(history),mode,webOn,attachment?JSON.stringify(attachment):"null");
+ webOn=false;$("#web").classList.remove("activeBtn");
+}
+$("#send").onclick=()=>send();
+$("#input").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}});
+$("#input").addEventListener("input",e=>{e.target.style.height="auto";e.target.style.height=Math.min(e.target.scrollHeight,125)+"px"});
+
+window.onNativeResult=raw=>{
+ try{
+  const r=JSON.parse(raw),i=messages.findIndex(m=>m.pending===r.id);
+  if(i>=0)messages[i]={role:"assistant",content:r.answer};
+  render();status("Hazır");
+  if(voiceOn)GokAIAndroid.speak(r.answer);
+ }catch(e){status("Yanıt işlenemedi")}
+};
+window.onVoiceResult=t=>{if(t){status("Düşünüyor…");send(t)}};
+window.onVoiceStopped=()=>{voiceOn=false;$("#voice").classList.remove("activeBtn");status("Sesli sohbet kapalı")};
+window.onVoiceError=t=>{voiceOn=false;$("#voice").classList.remove("activeBtn");status(t)};
+window.onFilePicked=raw=>{
+ try{attachment=JSON.parse(raw);$("#attachName").textContent="📎 "+attachment.name;$("#attachment").classList.add("show");status("Dosya eklendi")}catch(e){}
+};
+window.onFileError=t=>status(t);
+
+render();setTimeout(ensureKey,500);
+</script>
+</body>
+</html>
