@@ -21,6 +21,7 @@ header{
   height:52px;
   display:flex;
   align-items:center;
+  justify-content:space-between;
   padding:0 14px;
   border-bottom:1px solid #263247;
   font-weight:bold;
@@ -35,6 +36,201 @@ header{
 
 .welcome{
   text-align:center;
+  margin-top:35%;
+  color:#b8c4d8;
+}
+
+.bottom{
+  padding:10px;
+  border-top:1px solid #263247;
+}
+
+.inputrow{
+  display:flex;
+  align-items:center;
+  background:#192438;
+  border-radius:25px;
+  padding:5px 7px 5px 14px;
+}
+
+input{
+  flex:1;
+  border:0;
+  outline:0;
+  background:transparent;
+  color:white;
+  font-size:16px;
+  padding:10px 0;
+}
+
+button{
+  border:0;
+  border-radius:20px;
+  background:#202d42;
+  color:white;
+  padding:9px 13px;
+}
+
+.send{
+  width:42px;
+  height:42px;
+  border-radius:50%;
+  font-size:20px;
+  background:white;
+  color:#111827;
+  padding:0;
+}
+
+.msg{
+  padding:11px 14px;
+  margin:8px 0;
+  border-radius:16px;
+  max-width:88%;
+  line-height:1.4;
+  white-space:pre-wrap;
+}
+
+.me{
+  background:#2b3b55;
+  margin-left:auto;
+}
+
+.ai{
+  background:#182337;
+}
+
+#keybox{
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.65);
+  align-items:center;
+  justify-content:center;
+}
+
+.modal{
+  width:90%;
+  max-width:400px;
+  background:#172235;
+  padding:20px;
+  border-radius:18px;
+}
+
+.modal input{
+  width:100%;
+  background:#0f1726;
+  border-radius:12px;
+  padding:12px;
+  margin:10px 0;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <span>GökAI</span>
+  <button onclick="openKey()">⚙</button>
+</header>
+
+<div id="chat">
+  <div class="welcome" id="welcome">
+    <h2>Merhaba 👋</h2>
+    <div>Bugün sana nasıl yardımcı olabilirim?</div>
+  </div>
+</div>
+
+<div class="bottom">
+  <div class="inputrow">
+    <input id="input" placeholder="GökAI'ye bir şey sor..." autocomplete="off">
+    <button class="send" onclick="send()">↑</button>
+  </div>
+</div>
+
+<div id="keybox">
+  <div class="modal">
+    <h3>Groq API Anahtarı</h3>
+    <input id="apikey" placeholder="gsk_...">
+    <button onclick="saveKey()">Kaydet</button>
+    <button onclick="closeKey()">Kapat</button>
+  </div>
+</div>
+
+<script>
+function addMessage(text,type){
+  const div=document.createElement("div");
+  div.className="msg "+type;
+  div.innerText=text;
+  document.getElementById("chat").appendChild(div);
+  div.scrollIntoView();
+}
+
+function send(){
+  const input=document.getElementById("input");
+  const text=input.value.trim();
+  if(!text)return;
+
+  document.getElementById("welcome").style.display="none";
+  addMessage(text,"me");
+  input.value="";
+
+  addMessage("Düşünüyorum...","ai");
+
+  if(window.GokAIAndroid){
+    GokAIAndroid.ask(text);
+  }else{
+    window.onAIResult("Android bağlantısı bulunamadı.");
+  }
+}
+
+window.onAIResult=function(text){
+  const chat=document.getElementById("chat");
+  const msgs=chat.getElementsByClassName("ai");
+
+  if(msgs.length>0 &&
+     msgs[msgs.length-1].innerText==="Düşünüyorum..."){
+    msgs[msgs.length-1].remove();
+  }
+
+  addMessage(text,"ai");
+}
+
+function openKey(){
+  document.getElementById("keybox").style.display="flex";
+
+  if(window.GokAIAndroid){
+    document.getElementById("apikey").value =
+      GokAIAndroid.getApiKey();
+  }
+}
+
+function closeKey(){
+  document.getElementById("keybox").style.display="none";
+}
+
+function saveKey(){
+  const key=document.getElementById("apikey").value.trim();
+
+  if(!key){
+    alert("API anahtarı boş olamaz.");
+    return;
+  }
+
+  if(window.GokAIAndroid){
+    GokAIAndroid.saveApiKey(key);
+  }
+
+  alert("API anahtarı kaydedildi.");
+  closeKey();
+}
+
+document.getElementById("input").addEventListener("keydown",function(e){
+  if(e.key==="Enter")send();
+});
+</script>
+
+</body>
+</html>  text-align:center;
   margin-top:35%;
   color:#b8c4d8;
 }
