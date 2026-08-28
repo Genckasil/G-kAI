@@ -1,0 +1,28 @@
+GökAI - GitHub'dan APK Oluşturma
+
+1. github.com sitesine gir ve hesabına giriş yap.
+2. Sağ üst + > New repository.
+3. Repository adı: GokAI
+4. Public veya Private seçebilirsin.
+5. Create repository.
+6. Bu ZIP'i telefonunda çıkar.
+7. GitHub reposunda "Add file" > "Upload files".
+8. ÇIKARILMIŞ klasörün içindeki TÜM dosyaları yükle:
+   - app
+   - .github
+   - build.gradle
+   - settings.gradle
+   - gradle.properties
+9. Commit changes de.
+10. Üst menüden Actions sekmesine gir.
+11. "Build GokAI APK" iş akışını aç.
+12. Gerekirse "Run workflow" düğmesine bas.
+13. Build yeşil tik olunca çalışmanın içine gir.
+14. En altta Artifacts bölümünde "GokAI-APK" görünür.
+15. Ona basıp ZIP'i indir.
+16. ZIP'i çıkarınca app-debug.apk çıkar.
+17. app-debug.apk dosyasına dokun ve telefona yükle.
+
+Not:
+- GitHub'a ZIP dosyasını tek parça olarak koymak yetmez. ZIP'i çıkarıp içindeki proje dosyalarını repoya yüklemelisin.
+- .github klasörü gizli görünebilir ama mutlaka yüklenmelidir; APK'yı otomatik üreten dosya onun içindedir.
