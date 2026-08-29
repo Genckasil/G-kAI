@@ -15,7 +15,8 @@ color:white;
 font-family:Arial,sans-serif;
 height:100vh;
 display:flex;
-flex-direction:column
+flex-direction:column;
+overflow:hidden
 }
 
 header{
@@ -23,10 +24,24 @@ height:50px;
 display:flex;
 align-items:center;
 justify-content:space-between;
-padding:0 12px;
+padding:0 10px;
 border-bottom:1px solid #263247;
 font-size:19px;
 font-weight:bold
+}
+
+.headerLeft{
+display:flex;
+align-items:center;
+gap:8px
+}
+
+.iconBtn{
+width:38px;
+height:38px;
+padding:0;
+border-radius:12px;
+font-size:20px
 }
 
 #chat{
@@ -63,9 +78,7 @@ font-size:14px;
 white-space:nowrap
 }
 
-.active{
-background:#2563eb
-}
+.active{background:#2563eb}
 
 .inputrow{
 display:flex;
@@ -109,14 +122,81 @@ background:#2b3b55;
 margin-left:auto
 }
 
-.ai{
-background:#182337
-}
+.ai{background:#182337}
 
 .file{
 font-size:13px;
 color:#9fb1ca;
 margin:4px 5px
+}
+
+#overlay{
+display:none;
+position:fixed;
+inset:0;
+background:rgba(0,0,0,.55);
+z-index:20
+}
+
+#sidebar{
+position:fixed;
+top:0;
+left:-82%;
+width:82%;
+max-width:340px;
+height:100%;
+background:#111b2b;
+z-index:30;
+transition:.22s;
+display:flex;
+flex-direction:column;
+border-right:1px solid #263247
+}
+
+#sidebar.open{left:0}
+
+.sideTop{
+padding:12px;
+border-bottom:1px solid #263247
+}
+
+.newChat{
+width:100%;
+padding:12px;
+font-size:15px
+}
+
+#history{
+flex:1;
+overflow:auto;
+padding:8px
+}
+
+.historyItem{
+display:flex;
+align-items:center;
+gap:6px;
+margin-bottom:5px
+}
+
+.historyOpen{
+flex:1;
+text-align:left;
+overflow:hidden;
+text-overflow:ellipsis;
+padding:11px
+}
+
+.deleteBtn{
+padding:9px 11px;
+background:#38212a
+}
+
+.sideBottom{
+padding:10px;
+border-top:1px solid #263247;
+color:#8797af;
+font-size:12px
 }
 
 #keybox{
@@ -126,7 +206,7 @@ inset:0;
 background:rgba(0,0,0,.70);
 align-items:center;
 justify-content:center;
-z-index:10
+z-index:50
 }
 
 .modal{
@@ -151,353 +231,401 @@ margin:10px 0
 
 <body>
 
+<div id="overlay" onclick="closeSidebar()"></div>
+
+<div id="sidebar">
+<div class="sideTop">
+<button class="newChat" onclick="newChat()">＋ Yeni sohbet</button>
+</div>
+
+<div id="history"></div>
+
+<div class="sideBottom">
+GökAI sohbet geçmişi
+</div>
+</div>
+
 <header>
+<div class="headerLeft">
+<button class="iconBtn" onclick="openSidebar()">☰</button>
 <span>GökAI</span>
-<button onclick="openKey()">⚙</button>
+</div>
+
+<button class="iconBtn" onclick="openKey()">⚙</button>
 </header>
 
 <div id="chat">
-
 <div class="welcome" id="welcome">
 <h2>Merhaba 👋</h2>
 <div>Bugün sana nasıl yardımcı olabilirim?</div>
 </div>
-
 </div>
 
 <div class="bottom">
 
 <div class="tools">
-
 <button onclick="pickFile()">＋</button>
-
-<button id="modeBtn"
-onclick="changeMode()">
-⚡ Hızlı
-</button>
-
-<button id="webBtn"
-onclick="toggleWeb()">
-🌐 Web
-</button>
-
-<button id="voiceBtn"
-onclick="startVoice()">
-🎙 Ses
-</button>
-
+<button id="modeBtn" onclick="changeMode()">⚡ Hızlı</button>
+<button id="webBtn" onclick="toggleWeb()">🌐 Web</button>
+<button id="voiceBtn" onclick="startVoice()">🎙 Ses</button>
 </div>
 
 <div id="fileInfo" class="file"></div>
 
 <div class="inputrow">
-
-<input
-id="input"
-placeholder="GökAI'ye bir şey sor..."
-autocomplete="off">
-
-<button
-class="send"
-onclick="send()">
-↑
-</button>
-
+<input id="input" placeholder="GökAI'ye bir şey sor..." autocomplete="off">
+<button class="send" onclick="send()">↑</button>
 </div>
+
 </div>
 
 <div id="keybox">
-
 <div class="modal">
-
 <h3>Groq API Anahtarı</h3>
-
-<input
-id="apikey"
-placeholder="gsk_...">
-
-<button onclick="saveKey()">
-Kaydet
-</button>
-
-<button onclick="closeKey()">
-Kapat
-</button>
-
+<input id="apikey" placeholder="gsk_...">
+<button onclick="saveKey()">Kaydet</button>
+<button onclick="closeKey()">Kapat</button>
 </div>
 </div>
 
 <script>
-
 let modes=["Hızlı","Düşün","Çalışma"];
 let modeIndex=0;
-
 let webOn=false;
 let voiceMode=false;
 let fileReady=false;
 
-function addMessage(text,type){
+let chats=[];
+let currentChatId=null;
 
+function loadChats(){
+try{
+chats=JSON.parse(localStorage.getItem("gokai_chats")||"[]");
+}catch(e){
+chats=[];
+}
+
+if(chats.length===0){
+createInitialChat();
+}else{
+currentChatId=localStorage.getItem("gokai_current")||chats[0].id;
+if(!chats.find(c=>c.id===currentChatId)){
+currentChatId=chats[0].id;
+}
+renderCurrentChat();
+}
+
+renderHistory();
+}
+
+function createInitialChat(){
+const chat={
+id:String(Date.now()),
+title:"Yeni sohbet",
+messages:[],
+created:Date.now()
+};
+
+chats.unshift(chat);
+currentChatId=chat.id;
+saveChats();
+renderCurrentChat();
+renderHistory();
+}
+
+function getCurrentChat(){
+return chats.find(c=>c.id===currentChatId);
+}
+
+function saveChats(){
+localStorage.setItem("gokai_chats",JSON.stringify(chats));
+localStorage.setItem("gokai_current",currentChatId||"");
+}
+
+function openSidebar(){
+document.getElementById("sidebar").classList.add("open");
+document.getElementById("overlay").style.display="block";
+renderHistory();
+}
+
+function closeSidebar(){
+document.getElementById("sidebar").classList.remove("open");
+document.getElementById("overlay").style.display="none";
+}
+
+function newChat(){
+const chat={
+id:String(Date.now()),
+title:"Yeni sohbet",
+messages:[],
+created:Date.now()
+};
+
+chats.unshift(chat);
+currentChatId=chat.id;
+
+saveChats();
+renderCurrentChat();
+renderHistory();
+closeSidebar();
+
+document.getElementById("input").focus();
+}
+
+function openChat(id){
+currentChatId=id;
+saveChats();
+renderCurrentChat();
+renderHistory();
+closeSidebar();
+}
+
+function deleteChat(id,event){
+event.stopPropagation();
+
+chats=chats.filter(c=>c.id!==id);
+
+if(chats.length===0){
+createInitialChat();
+return;
+}
+
+if(currentChatId===id){
+currentChatId=chats[0].id;
+}
+
+saveChats();
+renderCurrentChat();
+renderHistory();
+}
+
+function renderHistory(){
+const box=document.getElementById("history");
+box.innerHTML="";
+
+chats.forEach(chat=>{
+const row=document.createElement("div");
+row.className="historyItem";
+
+const open=document.createElement("button");
+open.className="historyOpen";
+open.innerText=chat.title||"Yeni sohbet";
+open.onclick=()=>openChat(chat.id);
+
+const del=document.createElement("button");
+del.className="deleteBtn";
+del.innerText="🗑";
+del.onclick=(e)=>deleteChat(chat.id,e);
+
+row.appendChild(open);
+row.appendChild(del);
+box.appendChild(row);
+});
+}
+
+function renderCurrentChat(){
+const chatBox=document.getElementById("chat");
+chatBox.innerHTML="";
+
+const chat=getCurrentChat();
+
+if(!chat || chat.messages.length===0){
+chatBox.innerHTML=
+'<div class="welcome" id="welcome">'+
+'<h2>Merhaba 👋</h2>'+
+'<div>Bugün sana nasıl yardımcı olabilirim?</div>'+
+'</div>';
+return;
+}
+
+chat.messages.forEach(m=>{
+drawMessage(m.text,m.type);
+});
+}
+
+function drawMessage(text,type){
 const div=document.createElement("div");
-
 div.className="msg "+type;
 div.innerText=text;
-
-document
-.getElementById("chat")
-.appendChild(div);
-
+document.getElementById("chat").appendChild(div);
 div.scrollIntoView();
 }
 
-function changeMode(){
+function addMessage(text,type){
+const chat=getCurrentChat();
+if(!chat)return;
 
+chat.messages.push({
+text:text,
+type:type,
+time:Date.now()
+});
+
+if(chat.title==="Yeni sohbet" && type==="me"){
+chat.title=text.length>34 ? text.substring(0,34)+"…" : text;
+}
+
+saveChats();
+drawMessage(text,type);
+renderHistory();
+}
+
+function removeThinking(){
+const chat=getCurrentChat();
+
+if(chat && chat.messages.length>0){
+const last=chat.messages[chat.messages.length-1];
+
+if(last.type==="ai" && last.text==="Düşünüyorum..."){
+chat.messages.pop();
+saveChats();
+}
+}
+
+const msgs=document.getElementsByClassName("ai");
+
+if(msgs.length>0 &&
+msgs[msgs.length-1].innerText==="Düşünüyorum..."){
+msgs[msgs.length-1].remove();
+}
+}
+
+function changeMode(){
 modeIndex=(modeIndex+1)%3;
 
-const icons=[
-"⚡ ",
-"🧠 ",
-"💼 "
-];
+const icons=["⚡ ","🧠 ","💼 "];
 
-document
-.getElementById("modeBtn")
-.innerText=
+document.getElementById("modeBtn").innerText=
 icons[modeIndex]+modes[modeIndex];
 }
 
 function toggleWeb(){
-
 webOn=!webOn;
 
-document
-.getElementById("webBtn")
-.classList.toggle(
-"active",
-webOn
-);
+document.getElementById("webBtn")
+.classList.toggle("active",webOn);
 }
 
 function pickFile(){
-
 if(window.GokAIAndroid){
-
 GokAIAndroid.pickFile();
-
 }else{
-
 alert("Dosya bağlantısı bulunamadı.");
 }
 }
 
 window.onFilePicked=function(name){
-
 fileReady=true;
-
-document
-.getElementById("fileInfo")
-.innerText="📎 "+name;
-
-document
-.getElementById("welcome")
-.style.display="none";
+document.getElementById("fileInfo").innerText="📎 "+name;
 }
 
 window.onFileError=function(error){
-
 fileReady=false;
-
-document
-.getElementById("fileInfo")
-.innerText="";
-
+document.getElementById("fileInfo").innerText="";
 alert(error);
 }
 
 function startVoice(){
-
 voiceMode=true;
-
-document
-.getElementById("voiceBtn")
-.classList.add("active");
+document.getElementById("voiceBtn").classList.add("active");
 
 if(window.GokAIAndroid){
-
 GokAIAndroid.startVoice();
-
 }else{
-
 alert("Mikrofon bağlantısı bulunamadı.");
 }
 }
 
 window.onVoiceResult=function(text){
-
-document
-.getElementById("input")
-.value=text;
-
+document.getElementById("input").value=text;
 send();
 }
 
 window.onVoiceError=function(text){
-
 voiceMode=false;
-
-document
-.getElementById("voiceBtn")
-.classList.remove("active");
-
+document.getElementById("voiceBtn").classList.remove("active");
 alert(text);
 }
 
 function send(){
-
-const input=
-document.getElementById("input");
-
-const text=input.value.trim();
+const input=document.getElementById("input");
+let text=input.value.trim();
 
 if(!text){
-
 if(fileReady){
-
-input.value="Bu dosyayı incele ve bana anlat.";
-
+text="Bu dosyayı incele ve bana anlat.";
 }else{
-
 return;
 }
 }
 
-const finalText=
-input.value.trim();
-
-document
-.getElementById("welcome")
-.style.display="none";
-
-addMessage(finalText,"me");
-
+addMessage(text,"me");
 input.value="";
 
-addMessage(
-"Düşünüyorum...",
-"ai"
-);
+addMessage("Düşünüyorum...","ai");
 
 if(window.GokAIAndroid){
-
 GokAIAndroid.askAdvanced(
-finalText,
+text,
 modes[modeIndex],
 webOn
 );
-
 }else{
-
-window.onAIResult(
-"Android bağlantısı bulunamadı."
-);
+window.onAIResult("Android bağlantısı bulunamadı.");
 }
 }
 
 window.onAIResult=function(text){
-
-const msgs=
-document.getElementsByClassName("ai");
-
-if(
-msgs.length>0 &&
-msgs[msgs.length-1].innerText==="Düşünüyorum..."
-){
-
-msgs[msgs.length-1].remove();
-}
-
+removeThinking();
 addMessage(text,"ai");
 
-document
-.getElementById("fileInfo")
-.innerText="";
-
+document.getElementById("fileInfo").innerText="";
 fileReady=false;
 
 if(voiceMode && window.GokAIAndroid){
-
 GokAIAndroid.speak(text);
-
 voiceMode=false;
-
-document
-.getElementById("voiceBtn")
-.classList.remove("active");
+document.getElementById("voiceBtn").classList.remove("active");
 }
 }
 
 function openKey(){
-
-document
-.getElementById("keybox")
-.style.display="flex";
+document.getElementById("keybox").style.display="flex";
 
 if(window.GokAIAndroid){
-
-document
-.getElementById("apikey")
-.value=
+document.getElementById("apikey").value=
 GokAIAndroid.getApiKey();
 }
 }
 
 function closeKey(){
-
-document
-.getElementById("keybox")
-.style.display="none";
+document.getElementById("keybox").style.display="none";
 }
 
 function saveKey(){
-
-const key=
-document
-.getElementById("apikey")
-.value
-.trim();
+const key=document.getElementById("apikey").value.trim();
 
 if(!key){
-
-alert(
-"API anahtarı boş olamaz."
-);
-
+alert("API anahtarı boş olamaz.");
 return;
 }
 
 if(window.GokAIAndroid){
-
 GokAIAndroid.saveApiKey(key);
 }
 
-alert(
-"API anahtarı kaydedildi."
-);
-
+alert("API anahtarı kaydedildi.");
 closeKey();
 }
 
-document
-.getElementById("input")
-.addEventListener(
-"keydown",
-function(e){
-
+document.getElementById("input")
+.addEventListener("keydown",function(e){
 if(e.key==="Enter"){
 send();
 }
-
 });
+
+loadChats();
 </script>
 
 </body>
