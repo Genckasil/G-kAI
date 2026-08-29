@@ -39,8 +39,14 @@ public class MainActivity extends Activity {
     private static final int FILE_REQ = 102;
     private static final int MIC_PERMISSION = 103;
 
+    private static final int MAX_FILE_BYTES = 500000;
+    private static final int MAX_FILE_TEXT = 12000;
+    private static final int MAX_IMAGE_BYTES = 3500000;
+
     private String pendingImage = "";
+    private String pendingImageMime = "";
     private String pendingFileText = "";
+    private String pendingFileName = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,7 +64,10 @@ public class MainActivity extends Activity {
         webView.setWebViewClient(new WebViewClient());
         webView.setWebChromeClient(new WebChromeClient());
 
-        webView.addJavascriptInterface(new GokAIBridge(), "GokAIAndroid");
+        webView.addJavascriptInterface(
+                new GokAIBridge(),
+                "GokAIAndroid"
+        );
 
         tts = new TextToSpeech(this, status -> {
             if (status == TextToSpeech.SUCCESS) {
@@ -92,7 +101,11 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
-        public void askAdvanced(String text, String mode, boolean webSearch) {
+        public void askAdvanced(
+                String text,
+                String mode,
+                boolean webSearch
+        ) {
             askAI(text, mode, webSearch);
         }
 
@@ -104,12 +117,15 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void speak(String text) {
             runOnUiThread(() -> {
-                if (tts != null) {
+                if (tts != null &&
+                        text != null &&
+                        !text.trim().isEmpty()) {
+
                     tts.speak(
                             text,
                             TextToSpeech.QUEUE_FLUSH,
                             null,
-                            "gokai"
+                            "gokai_reply"
                     );
                 }
             });
@@ -118,9 +134,16 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void pickFile() {
             runOnUiThread(() -> {
-                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                intent.addCategory(Intent.CATEGORY_OPENABLE);
+
+                Intent intent =
+                        new Intent(Intent.ACTION_OPEN_DOCUMENT);
+
+                intent.addCategory(
+                        Intent.CATEGORY_OPENABLE
+                );
+
                 intent.setType("*/*");
+
                 intent.putExtra(
                         Intent.EXTRA_MIME_TYPES,
                         new String[]{
@@ -130,27 +153,41 @@ public class MainActivity extends Activity {
                                 "text/csv"
                         }
                 );
-                startActivityForResult(intent, FILE_REQ);
+
+                startActivityForResult(
+                        intent,
+                        FILE_REQ
+                );
             });
+        }
+
+        @JavascriptInterface
+        public void clearAttachment() {
+            clearPendingAttachment();
         }
     }
 
     private void beginVoice() {
 
         if (android.os.Build.VERSION.SDK_INT >= 23 &&
-                checkSelfPermission(Manifest.permission.RECORD_AUDIO)
-                        != PackageManager.PERMISSION_GRANTED) {
+                checkSelfPermission(
+                        Manifest.permission.RECORD_AUDIO
+                ) != PackageManager.PERMISSION_GRANTED) {
 
             requestPermissions(
-                    new String[]{Manifest.permission.RECORD_AUDIO},
+                    new String[]{
+                            Manifest.permission.RECORD_AUDIO
+                    },
                     MIC_PERMISSION
             );
+
             return;
         }
 
-        Intent intent = new Intent(
-                RecognizerIntent.ACTION_RECOGNIZE_SPEECH
-        );
+        Intent intent =
+                new Intent(
+                        RecognizerIntent.ACTION_RECOGNIZE_SPEECH
+                );
 
         intent.putExtra(
                 RecognizerIntent.EXTRA_LANGUAGE_MODEL,
@@ -168,9 +205,21 @@ public class MainActivity extends Activity {
         );
 
         try {
-            startActivityForResult(intent, VOICE_REQ);
+
+            startActivityForResult(
+                    intent,
+                    VOICE_REQ
+            );
+
         } catch (Exception e) {
-            sendJs("window.onVoiceError('Ses tanıma açılamadı.');");
+
+            sendJs(
+                    "window.onVoiceError(" +
+                            JSONObject.quote(
+                                    "Ses tanıma açılamadı."
+                            ) +
+                            ");"
+            );
         }
     }
 
@@ -178,7 +227,8 @@ public class MainActivity extends Activity {
     public void onRequestPermissionsResult(
             int requestCode,
             String[] permissions,
-            int[] grantResults) {
+            int[] grantResults
+    ) {
 
         super.onRequestPermissionsResult(
                 requestCode,
@@ -188,7 +238,8 @@ public class MainActivity extends Activity {
 
         if (requestCode == MIC_PERMISSION &&
                 grantResults.length > 0 &&
-                grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                grantResults[0] ==
+                        PackageManager.PERMISSION_GRANTED) {
 
             beginVoice();
         }
@@ -198,7 +249,8 @@ public class MainActivity extends Activity {
     protected void onActivityResult(
             int requestCode,
             int resultCode,
-            Intent data) {
+            Intent data
+    ) {
 
         super.onActivityResult(
                 requestCode,
@@ -206,7 +258,8 @@ public class MainActivity extends Activity {
                 data
         );
 
-        if (resultCode != RESULT_OK || data == null) {
+        if (resultCode != RESULT_OK ||
+                data == null) {
             return;
         }
 
@@ -217,13 +270,14 @@ public class MainActivity extends Activity {
                             RecognizerIntent.EXTRA_RESULTS
                     );
 
-            if (results != null && !results.isEmpty()) {
-
-                String spoken = results.get(0);
+            if (results != null &&
+                    !results.isEmpty()) {
 
                 sendJs(
                         "window.onVoiceResult(" +
-                                JSONObject.quote(spoken) +
+                                JSONObject.quote(
+                                        results.get(0)
+                                ) +
                                 ");"
                 );
             }
@@ -245,45 +299,78 @@ public class MainActivity extends Activity {
 
             try {
 
-                String mime =
-                        getContentResolver().getType(uri);
+                clearPendingAttachment();
 
-                String name = getFileName(uri);
+                String mime =
+                        getContentResolver()
+                                .getType(uri);
+
+                String name =
+                        getFileName(uri);
 
                 InputStream input =
-                        getContentResolver().openInputStream(uri);
+                        getContentResolver()
+                                .openInputStream(uri);
 
                 if (input == null) {
-                    throw new Exception("Dosya açılamadı.");
+                    throw new Exception(
+                            "Dosya açılamadı."
+                    );
                 }
+
+                boolean isImage =
+                        mime != null &&
+                                mime.startsWith(
+                                        "image/"
+                                );
+
+                int maxBytes =
+                        isImage
+                                ? MAX_IMAGE_BYTES
+                                : MAX_FILE_BYTES;
 
                 ByteArrayOutputStream output =
                         new ByteArrayOutputStream();
 
-                byte[] buffer = new byte[8192];
+                byte[] buffer =
+                        new byte[8192];
+
                 int read;
                 int total = 0;
 
-                while ((read = input.read(buffer)) != -1) {
+                while ((read =
+                        input.read(buffer)) != -1) {
 
                     total += read;
 
-                    if (total > 4 * 1024 * 1024) {
+                    if (total > maxBytes) {
+
                         input.close();
+
                         throw new Exception(
-                                "Dosya şu an en fazla 4 MB olabilir."
+                                isImage
+                                        ? "Resim en fazla yaklaşık 3,5 MB olabilir."
+                                        : "Metin dosyası fazla büyük."
                         );
                     }
 
-                    output.write(buffer, 0, read);
+                    output.write(
+                            buffer,
+                            0,
+                            read
+                    );
                 }
 
                 input.close();
 
-                byte[] bytes = output.toByteArray();
+                byte[] bytes =
+                        output.toByteArray();
 
-                if (mime != null &&
-                        mime.startsWith("image/")) {
+                pendingFileName = name;
+
+                if (isImage) {
+
+                    pendingImageMime = mime;
 
                     pendingImage =
                             "data:" +
@@ -294,14 +381,26 @@ public class MainActivity extends Activity {
                                             Base64.NO_WRAP
                                     );
 
-                    pendingFileText = "";
-
                 } else {
 
-                    pendingFileText =
-                            new String(bytes, "UTF-8");
+                    String text =
+                            new String(
+                                    bytes,
+                                    "UTF-8"
+                            );
 
-                    pendingImage = "";
+                    if (text.length() >
+                            MAX_FILE_TEXT) {
+
+                        text =
+                                text.substring(
+                                        0,
+                                        MAX_FILE_TEXT
+                                ) +
+                                "\n\n[Dosyanın devamı boyut sınırı nedeniyle kesildi.]";
+                    }
+
+                    pendingFileText = text;
                 }
 
                 sendJs(
@@ -311,6 +410,8 @@ public class MainActivity extends Activity {
                 );
 
             } catch (Exception e) {
+
+                clearPendingAttachment();
 
                 sendJs(
                         "window.onFileError(" +
@@ -327,33 +428,39 @@ public class MainActivity extends Activity {
     private String getFileName(Uri uri) {
 
         String result = "dosya";
-
         Cursor cursor = null;
 
         try {
 
-            cursor = getContentResolver().query(
-                    uri,
-                    null,
-                    null,
-                    null,
-                    null
-            );
+            cursor =
+                    getContentResolver()
+                            .query(
+                                    uri,
+                                    null,
+                                    null,
+                                    null,
+                                    null
+                            );
 
             if (cursor != null &&
                     cursor.moveToFirst()) {
 
                 int index =
                         cursor.getColumnIndex(
-                                OpenableColumns.DISPLAY_NAME
+                                OpenableColumns
+                                        .DISPLAY_NAME
                         );
 
                 if (index >= 0) {
-                    result = cursor.getString(index);
+                    result =
+                            cursor.getString(
+                                    index
+                            );
                 }
             }
 
         } catch (Exception ignored) {
+
         } finally {
 
             if (cursor != null) {
@@ -367,7 +474,8 @@ public class MainActivity extends Activity {
     private void askAI(
             String text,
             String mode,
-            boolean webSearch) {
+            boolean webSearch
+    ) {
 
         new Thread(() -> {
 
@@ -377,7 +485,10 @@ public class MainActivity extends Activity {
                         getSharedPreferences(
                                 "gokai",
                                 MODE_PRIVATE
-                        ).getString("groq_key", "");
+                        ).getString(
+                                "groq_key",
+                                ""
+                        );
 
                 if (apiKey.isEmpty()) {
 
@@ -388,224 +499,75 @@ public class MainActivity extends Activity {
                     return;
                 }
 
-                String model;
-
-                if (!pendingImage.isEmpty()) {
-
-                    model = "qwen/qwen3.6-27b";
-
-                } else if (webSearch) {
-
-                    if ("Hızlı".equals(mode)) {
-                        model = "groq/compound-mini";
-                    } else {
-                        model = "groq/compound";
-                    }
-
-                } else if ("Düşün".equals(mode) ||
-                        "Çalışma".equals(mode)) {
-
-                    model = "openai/gpt-oss-120b";
-
-                } else {
-
-                    model = "openai/gpt-oss-20b";
+                if (text == null) {
+                    text = "";
                 }
 
-                URL url = new URL(
-                        "https://api.groq.com/openai/v1/chat/completions"
-                );
+                text = text.trim();
 
-                HttpURLConnection connection =
-                        (HttpURLConnection) url.openConnection();
+                if (text.length() > 8000) {
+                    text =
+                            text.substring(
+                                    0,
+                                    8000
+                            );
+                }
 
-                connection.setRequestMethod("POST");
+                /*
+                 * WEB MODU:
+                 * Dosya ve base64 resim kesinlikle
+                 * web isteğine eklenmiyor.
+                 * Böylece 413 riski büyük ölçüde azalır.
+                 */
+                if (webSearch) {
 
-                connection.setRequestProperty(
-                        "Authorization",
-                        "Bearer " + apiKey
-                );
-
-                connection.setRequestProperty(
-                        "Content-Type",
-                        "application/json"
-                );
-
-                connection.setConnectTimeout(20000);
-                connection.setReadTimeout(60000);
-                connection.setDoOutput(true);
-
-                JSONObject body = new JSONObject();
-
-                body.put("model", model);
-
-                JSONArray messages = new JSONArray();
-
-                JSONObject system = new JSONObject();
-
-                system.put("role", "system");
-
-                system.put(
-                        "content",
-                        "Sen GökAI adlı Türkçe konuşan yardımcı bir yapay zekasın. " +
-                        "Doğal, anlaşılır ve faydalı cevaplar ver."
-                );
-
-                messages.put(system);
-
-                JSONObject user = new JSONObject();
-
-                user.put("role", "user");
-
-                if (!pendingImage.isEmpty()) {
-
-                    JSONArray content =
-                            new JSONArray();
-
-                    JSONObject textPart =
-                            new JSONObject();
-
-                    textPart.put(
-                            "type",
-                            "text"
+                    callTextModel(
+                            apiKey,
+                            text,
+                            mode,
+                            true
                     );
 
-                    textPart.put(
-                            "text",
+                    return;
+                }
+
+                /*
+                 * Resim varsa vision modeli.
+                 */
+                if (!pendingImage.isEmpty()) {
+
+                    callVisionModel(
+                            apiKey,
                             text
                     );
 
-                    JSONObject imagePart =
-                            new JSONObject();
-
-                    imagePart.put(
-                            "type",
-                            "image_url"
-                    );
-
-                    JSONObject imageUrl =
-                            new JSONObject();
-
-                    imageUrl.put(
-                            "url",
-                            pendingImage
-                    );
-
-                    imagePart.put(
-                            "image_url",
-                            imageUrl
-                    );
-
-                    content.put(textPart);
-                    content.put(imagePart);
-
-                    user.put(
-                            "content",
-                            content
-                    );
-
-                } else {
-
-                    String finalText = text;
-
-                    if (!pendingFileText.isEmpty()) {
-
-                        finalText +=
-                                "\n\nEklenen dosyanın içeriği:\n" +
-                                        pendingFileText;
-                    }
-
-                    user.put(
-                            "content",
-                            finalText
-                    );
+                    return;
                 }
 
-                messages.put(user);
+                /*
+                 * Normal metin + küçük metin dosyası.
+                 */
+                String finalText = text;
 
-                body.put(
-                        "messages",
-                        messages
+                if (!pendingFileText.isEmpty()) {
+
+                    finalText +=
+                            "\n\nEkli dosya: " +
+                                    pendingFileName +
+                                    "\n\n" +
+                                    pendingFileText;
+                }
+
+                callTextModel(
+                        apiKey,
+                        finalText,
+                        mode,
+                        false
                 );
-
-                OutputStream os =
-                        connection.getOutputStream();
-
-                os.write(
-                        body.toString()
-                                .getBytes("UTF-8")
-                );
-
-                os.close();
-
-                int code =
-                        connection.getResponseCode();
-
-                BufferedReader reader;
-
-                if (code >= 200 && code < 300) {
-
-                    reader =
-                            new BufferedReader(
-                                    new InputStreamReader(
-                                            connection.getInputStream()
-                                    )
-                            );
-
-                } else {
-
-                    reader =
-                            new BufferedReader(
-                                    new InputStreamReader(
-                                            connection.getErrorStream()
-                                    )
-                            );
-                }
-
-                StringBuilder result =
-                        new StringBuilder();
-
-                String line;
-
-                while ((line = reader.readLine())
-                        != null) {
-
-                    result.append(line);
-                }
-
-                reader.close();
-
-                pendingImage = "";
-                pendingFileText = "";
-
-                if (code >= 200 &&
-                        code < 300) {
-
-                    JSONObject response =
-                            new JSONObject(
-                                    result.toString()
-                            );
-
-                    String answer =
-                            response
-                                    .getJSONArray("choices")
-                                    .getJSONObject(0)
-                                    .getJSONObject("message")
-                                    .getString("content");
-
-                    sendAnswer(answer);
-
-                } else {
-
-                    sendAnswer(
-                            "API hatası " +
-                                    code +
-                                    ": " +
-                                    result
-                    );
-                }
 
             } catch (Exception e) {
+
+                clearPendingAttachment();
 
                 sendAnswer(
                         "Bağlantı hatası: " +
@@ -616,23 +578,444 @@ public class MainActivity extends Activity {
         }).start();
     }
 
-    private void sendAnswer(String answer) {
+    private void callTextModel(
+            String apiKey,
+            String text,
+            String mode,
+            boolean webSearch
+    ) throws Exception {
+
+        String model;
+
+        if (webSearch) {
+
+            model =
+                    "Hızlı".equals(mode)
+                            ? "groq/compound-mini"
+                            : "groq/compound";
+
+        } else if (
+                "Düşün".equals(mode) ||
+                        "Çalışma".equals(mode)
+        ) {
+
+            model =
+                    "openai/gpt-oss-120b";
+
+        } else {
+
+            model =
+                    "openai/gpt-oss-20b";
+        }
+
+        JSONObject body =
+                new JSONObject();
+
+        body.put(
+                "model",
+                model
+        );
+
+        /*
+         * Kaynaklı web.
+         */
+        if (webSearch) {
+
+            body.put(
+                    "citation_options",
+                    "enabled"
+            );
+
+            JSONObject tools =
+                    new JSONObject();
+
+            JSONArray enabledTools =
+                    new JSONArray();
+
+            enabledTools.put(
+                    "web_search"
+            );
+
+            enabledTools.put(
+                    "visit_website"
+            );
+
+            tools.put(
+                    "enabled_tools",
+                    enabledTools
+            );
+
+            JSONObject compoundCustom =
+                    new JSONObject();
+
+            compoundCustom.put(
+                    "tools",
+                    tools
+            );
+
+            body.put(
+                    "compound_custom",
+                    compoundCustom
+            );
+        }
+
+        JSONArray messages =
+                new JSONArray();
+
+        JSONObject system =
+                new JSONObject();
+
+        system.put(
+                "role",
+                "system"
+        );
+
+        if (webSearch) {
+
+            system.put(
+                    "content",
+                    "Sen GökAI adlı Türkçe yapay zekasın. " +
+                            "Bu istek WEB MODUNDADIR. " +
+                            "Güncel bilgiler için web araması kullan. " +
+                            "Tahmin ederek eski bilgi verme. " +
+                            "Cevabın sonunda kullandığın kaynakları açıkça belirt."
+            );
+
+        } else {
+
+            system.put(
+                    "content",
+                    "Sen GökAI adlı Türkçe yapay zekasın. " +
+                            "Doğal, açık ve faydalı cevap ver. " +
+                            "Güncel olmayan bir konuda kesin güncelmiş gibi davranma."
+            );
+        }
+
+        messages.put(system);
+
+        JSONObject user =
+                new JSONObject();
+
+        user.put(
+                "role",
+                "user"
+        );
+
+        user.put(
+                "content",
+                text
+        );
+
+        messages.put(user);
+
+        body.put(
+                "messages",
+                messages
+        );
+
+        JSONObject response =
+                postGroq(
+                        apiKey,
+                        body
+                );
+
+        String answer =
+                response
+                        .getJSONArray("choices")
+                        .getJSONObject(0)
+                        .getJSONObject("message")
+                        .optString(
+                                "content",
+                                "Cevap alınamadı."
+                        );
+
+        clearPendingAttachment();
+
+        sendAnswer(answer);
+    }
+
+    private void callVisionModel(
+            String apiKey,
+            String text
+    ) throws Exception {
+
+        JSONObject body =
+                new JSONObject();
+
+        body.put(
+                "model",
+                "qwen/qwen3.6-27b"
+        );
+
+        JSONArray messages =
+                new JSONArray();
+
+        JSONObject system =
+                new JSONObject();
+
+        system.put(
+                "role",
+                "system"
+        );
+
+        system.put(
+                "content",
+                "Sen GökAI adlı Türkçe yapay zekasın. " +
+                        "Gönderilen görseli dikkatlice incele ve soruya göre cevap ver."
+        );
+
+        messages.put(system);
+
+        JSONObject user =
+                new JSONObject();
+
+        user.put(
+                "role",
+                "user"
+        );
+
+        JSONArray content =
+                new JSONArray();
+
+        JSONObject textPart =
+                new JSONObject();
+
+        textPart.put(
+                "type",
+                "text"
+        );
+
+        if (text == null ||
+                text.trim().isEmpty()) {
+
+            text =
+                    "Bu görseli ayrıntılı şekilde incele.";
+        }
+
+        textPart.put(
+                "text",
+                text
+        );
+
+        JSONObject imagePart =
+                new JSONObject();
+
+        imagePart.put(
+                "type",
+                "image_url"
+        );
+
+        JSONObject imageUrl =
+                new JSONObject();
+
+        imageUrl.put(
+                "url",
+                pendingImage
+        );
+
+        imagePart.put(
+                "image_url",
+                imageUrl
+        );
+
+        content.put(textPart);
+        content.put(imagePart);
+
+        user.put(
+                "content",
+                content
+        );
+
+        messages.put(user);
+
+        body.put(
+                "messages",
+                messages
+        );
+
+        JSONObject response =
+                postGroq(
+                        apiKey,
+                        body
+                );
+
+        String answer =
+                response
+                        .getJSONArray("choices")
+                        .getJSONObject(0)
+                        .getJSONObject("message")
+                        .optString(
+                                "content",
+                                "Görsel incelenemedi."
+                        );
+
+        clearPendingAttachment();
+
+        sendAnswer(answer);
+    }
+
+    private JSONObject postGroq(
+            String apiKey,
+            JSONObject body
+    ) throws Exception {
+
+        URL url =
+                new URL(
+                        "https://api.groq.com/openai/v1/chat/completions"
+                );
+
+        HttpURLConnection connection =
+                (HttpURLConnection)
+                        url.openConnection();
+
+        connection.setRequestMethod(
+                "POST"
+        );
+
+        connection.setRequestProperty(
+                "Authorization",
+                "Bearer " + apiKey
+        );
+
+        connection.setRequestProperty(
+                "Content-Type",
+                "application/json"
+        );
+
+        connection.setRequestProperty(
+                "Groq-Model-Version",
+                "latest"
+        );
+
+        connection.setConnectTimeout(
+                20000
+        );
+
+        connection.setReadTimeout(
+                90000
+        );
+
+        connection.setDoOutput(true);
+
+        byte[] requestBytes =
+                body.toString()
+                        .getBytes("UTF-8");
+
+        /*
+         * İstek aşırı büyürse Groq'a göndermeden
+         * burada durduruyoruz.
+         */
+        if (requestBytes.length >
+                5 * 1024 * 1024) {
+
+            throw new Exception(
+                    "Gönderilen içerik fazla büyük. Dosyayı veya resmi küçültüp tekrar dene."
+            );
+        }
+
+        OutputStream os =
+                connection.getOutputStream();
+
+        os.write(requestBytes);
+        os.flush();
+        os.close();
+
+        int code =
+                connection.getResponseCode();
+
+        InputStream responseStream;
+
+        if (code >= 200 &&
+                code < 300) {
+
+            responseStream =
+                    connection.getInputStream();
+
+        } else {
+
+            responseStream =
+                    connection.getErrorStream();
+        }
+
+        BufferedReader reader =
+                new BufferedReader(
+                        new InputStreamReader(
+                                responseStream
+                        )
+                );
+
+        StringBuilder result =
+                new StringBuilder();
+
+        String line;
+
+        while ((line =
+                reader.readLine()) != null) {
+
+            result.append(line);
+        }
+
+        reader.close();
+        connection.disconnect();
+
+        if (code >= 200 &&
+                code < 300) {
+
+            return new JSONObject(
+                    result.toString()
+            );
+        }
+
+        if (code == 413) {
+
+            throw new Exception(
+                    "Web isteği fazla büyük olduğu için reddedildi. Yeni sohbette tekrar dene."
+            );
+        }
+
+        throw new Exception(
+                "API hatası " +
+                        code +
+                        ": " +
+                        result
+        );
+    }
+
+    private void clearPendingAttachment() {
+
+        pendingImage = "";
+        pendingImageMime = "";
+        pendingFileText = "";
+        pendingFileName = "";
+    }
+
+    private void sendAnswer(
+            String answer
+    ) {
 
         sendJs(
                 "window.onAIResult(" +
-                        JSONObject.quote(answer) +
+                        JSONObject.quote(
+                                answer
+                        ) +
                         ");"
         );
     }
 
-    private void sendJs(String javascript) {
+    private void sendJs(
+            String javascript
+    ) {
 
-        runOnUiThread(() ->
+        runOnUiThread(() -> {
+
+            if (webView != null) {
+
                 webView.evaluateJavascript(
                         javascript,
                         null
-                )
-        );
+                );
+            }
+        });
     }
 
     @Override
@@ -643,6 +1026,10 @@ public class MainActivity extends Activity {
             tts.shutdown();
         }
 
+        if (webView != null) {
+            webView.destroy();
+        }
+
         super.onDestroy();
     }
-}
+    }
