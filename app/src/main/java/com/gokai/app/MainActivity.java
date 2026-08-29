@@ -6,6 +6,7 @@ import android.os.Bundle;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.provider.MediaStore;
 import android.provider.OpenableColumns;
 import android.database.Cursor;
 import android.speech.RecognizerIntent;
@@ -17,11 +18,14 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import androidx.core.content.FileProvider;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -38,15 +42,19 @@ public class MainActivity extends Activity {
     private static final int VOICE_REQ = 101;
     private static final int FILE_REQ = 102;
     private static final int MIC_PERMISSION = 103;
+    private static final int CAMERA_REQ = 104;
+    private static final int CAMERA_PERMISSION = 105;
+    private static final int SAVE_FILE_REQ = 106;
 
     private static final int MAX_FILE_BYTES = 500000;
     private static final int MAX_FILE_TEXT = 12000;
     private static final int MAX_IMAGE_BYTES = 3500000;
 
     private String pendingImage = "";
-    private String pendingImageMime = "";
     private String pendingFileText = "";
     private String pendingFileName = "";
+    private Uri cameraImageUri = null;
+    private String pendingSaveText = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,11 +71,7 @@ public class MainActivity extends Activity {
 
         webView.setWebViewClient(new WebViewClient());
         webView.setWebChromeClient(new WebChromeClient());
-
-        webView.addJavascriptInterface(
-                new GokAIBridge(),
-                "GokAIAndroid"
-        );
+        webView.addJavascriptInterface(new GokAIBridge(), "GokAIAndroid");
 
         tts = new TextToSpeech(this, status -> {
             if (status == TextToSpeech.SUCCESS) {
@@ -101,11 +105,7 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
-        public void askAdvanced(
-                String text,
-                String mode,
-                boolean webSearch
-        ) {
+        public void askAdvanced(String text, String mode, boolean webSearch) {
             askAI(text, mode, webSearch);
         }
 
@@ -117,16 +117,8 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void speak(String text) {
             runOnUiThread(() -> {
-                if (tts != null &&
-                        text != null &&
-                        !text.trim().isEmpty()) {
-
-                    tts.speak(
-                            text,
-                            TextToSpeech.QUEUE_FLUSH,
-                            null,
-                            "gokai_reply"
-                    );
+                if (tts != null && text != null && !text.trim().isEmpty()) {
+                    tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "gokai_reply");
                 }
             });
         }
@@ -134,14 +126,8 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void pickFile() {
             runOnUiThread(() -> {
-
-                Intent intent =
-                        new Intent(Intent.ACTION_OPEN_DOCUMENT);
-
-                intent.addCategory(
-                        Intent.CATEGORY_OPENABLE
-                );
-
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
                 intent.setType("*/*");
 
                 intent.putExtra(
@@ -154,11 +140,18 @@ public class MainActivity extends Activity {
                         }
                 );
 
-                startActivityForResult(
-                        intent,
-                        FILE_REQ
-                );
+                startActivityForResult(intent, FILE_REQ);
             });
+        }
+
+        @JavascriptInterface
+        public void openCamera() {
+            runOnUiThread(() -> beginCamera());
+        }
+
+        @JavascriptInterface
+        public void saveTextFile(String fileName, String content) {
+            runOnUiThread(() -> beginSaveTextFile(fileName, content));
         }
 
         @JavascriptInterface
@@ -170,24 +163,18 @@ public class MainActivity extends Activity {
     private void beginVoice() {
 
         if (android.os.Build.VERSION.SDK_INT >= 23 &&
-                checkSelfPermission(
-                        Manifest.permission.RECORD_AUDIO
-                ) != PackageManager.PERMISSION_GRANTED) {
+                checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                        != PackageManager.PERMISSION_GRANTED) {
 
             requestPermissions(
-                    new String[]{
-                            Manifest.permission.RECORD_AUDIO
-                    },
+                    new String[]{Manifest.permission.RECORD_AUDIO},
                     MIC_PERMISSION
             );
-
             return;
         }
 
         Intent intent =
-                new Intent(
-                        RecognizerIntent.ACTION_RECOGNIZE_SPEECH
-                );
+                new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
 
         intent.putExtra(
                 RecognizerIntent.EXTRA_LANGUAGE_MODEL,
@@ -205,11 +192,7 @@ public class MainActivity extends Activity {
         );
 
         try {
-
-            startActivityForResult(
-                    intent,
-                    VOICE_REQ
-            );
+            startActivityForResult(intent, VOICE_REQ);
 
         } catch (Exception e) {
 
@@ -221,6 +204,123 @@ public class MainActivity extends Activity {
                             ");"
             );
         }
+    }
+
+    private void beginCamera() {
+
+        if (android.os.Build.VERSION.SDK_INT >= 23 &&
+                checkSelfPermission(Manifest.permission.CAMERA)
+                        != PackageManager.PERMISSION_GRANTED) {
+
+            requestPermissions(
+                    new String[]{Manifest.permission.CAMERA},
+                    CAMERA_PERMISSION
+            );
+            return;
+        }
+
+        try {
+
+            File dir =
+                    new File(
+                            getCacheDir(),
+                            "camera"
+                    );
+
+            if (!dir.exists()) {
+                dir.mkdirs();
+            }
+
+            File photo =
+                    new File(
+                            dir,
+                            "gokai_" +
+                                    System.currentTimeMillis() +
+                                    ".jpg"
+                    );
+
+            cameraImageUri =
+                    FileProvider.getUriForFile(
+                            this,
+                            getPackageName() +
+                                    ".fileprovider",
+                            photo
+                    );
+
+            Intent intent =
+                    new Intent(
+                            MediaStore.ACTION_IMAGE_CAPTURE
+                    );
+
+            intent.putExtra(
+                    MediaStore.EXTRA_OUTPUT,
+                    cameraImageUri
+            );
+
+            intent.addFlags(
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            );
+
+            intent.addFlags(
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+            );
+
+            startActivityForResult(
+                    intent,
+                    CAMERA_REQ
+            );
+
+        } catch (Exception e) {
+
+            sendJs(
+                    "window.onFileError(" +
+                            JSONObject.quote(
+                                    "Kamera açılamadı: " +
+                                            e.getMessage()
+                            ) +
+                            ");"
+            );
+        }
+    }
+
+    private void beginSaveTextFile(
+            String fileName,
+            String content
+    ) {
+
+        if (fileName == null ||
+                fileName.trim().isEmpty()) {
+
+            fileName = "gokai.txt";
+        }
+
+        pendingSaveText =
+                content == null
+                        ? ""
+                        : content;
+
+        Intent intent =
+                new Intent(
+                        Intent.ACTION_CREATE_DOCUMENT
+                );
+
+        intent.addCategory(
+                Intent.CATEGORY_OPENABLE
+        );
+
+        intent.setType(
+                "text/plain"
+        );
+
+        intent.putExtra(
+                Intent.EXTRA_TITLE,
+                fileName
+        );
+
+        startActivityForResult(
+                intent,
+                SAVE_FILE_REQ
+        );
     }
 
     @Override
@@ -236,12 +336,22 @@ public class MainActivity extends Activity {
                 grantResults
         );
 
+        if (grantResults.length == 0) {
+            return;
+        }
+
         if (requestCode == MIC_PERMISSION &&
-                grantResults.length > 0 &&
                 grantResults[0] ==
                         PackageManager.PERMISSION_GRANTED) {
 
             beginVoice();
+        }
+
+        if (requestCode == CAMERA_PERMISSION &&
+                grantResults[0] ==
+                        PackageManager.PERMISSION_GRANTED) {
+
+            beginCamera();
         }
     }
 
@@ -258,12 +368,28 @@ public class MainActivity extends Activity {
                 data
         );
 
-        if (resultCode != RESULT_OK ||
-                data == null) {
+        if (requestCode ==
+                SAVE_FILE_REQ) {
+
+            if (resultCode == RESULT_OK &&
+                    data != null &&
+                    data.getData() != null) {
+
+                saveTextToUri(
+                        data.getData()
+                );
+            }
+
             return;
         }
 
-        if (requestCode == VOICE_REQ) {
+        if (resultCode != RESULT_OK) {
+            return;
+        }
+
+        if (requestCode ==
+                VOICE_REQ &&
+                data != null) {
 
             ArrayList<String> results =
                     data.getStringArrayListExtra(
@@ -283,17 +409,166 @@ public class MainActivity extends Activity {
             }
         }
 
-        if (requestCode == FILE_REQ) {
+        if (requestCode ==
+                FILE_REQ &&
+                data != null &&
+                data.getData() != null) {
 
-            Uri uri = data.getData();
+            handleFile(
+                    data.getData()
+            );
+        }
 
-            if (uri != null) {
-                handleFile(uri);
-            }
+        if (requestCode ==
+                CAMERA_REQ &&
+                cameraImageUri != null) {
+
+            handleCameraImage(
+                    cameraImageUri
+            );
         }
     }
 
-    private void handleFile(Uri uri) {
+    private void saveTextToUri(
+            Uri uri
+    ) {
+
+        new Thread(() -> {
+
+            try {
+
+                OutputStream out =
+                        getContentResolver()
+                                .openOutputStream(uri);
+
+                if (out == null) {
+                    throw new Exception(
+                            "Dosya açılamadı."
+                    );
+                }
+
+                out.write(
+                        pendingSaveText
+                                .getBytes("UTF-8")
+                );
+
+                out.flush();
+                out.close();
+
+                pendingSaveText = "";
+
+                sendJs(
+                        "window.onFileSaved(" +
+                                JSONObject.quote(
+                                        "Dosya kaydedildi."
+                                ) +
+                                ");"
+                );
+
+            } catch (Exception e) {
+
+                sendJs(
+                        "window.onFileSaveError(" +
+                                JSONObject.quote(
+                                        e.getMessage()
+                                ) +
+                                ");"
+                );
+            }
+
+        }).start();
+    }
+
+    private void handleCameraImage(
+            Uri uri
+    ) {
+
+        new Thread(() -> {
+
+            try {
+
+                clearPendingAttachment();
+
+                InputStream input =
+                        getContentResolver()
+                                .openInputStream(uri);
+
+                if (input == null) {
+                    throw new Exception(
+                            "Fotoğraf açılamadı."
+                    );
+                }
+
+                ByteArrayOutputStream output =
+                        new ByteArrayOutputStream();
+
+                byte[] buffer =
+                        new byte[8192];
+
+                int read;
+                int total = 0;
+
+                while ((read =
+                        input.read(buffer)) != -1) {
+
+                    total += read;
+
+                    if (total >
+                            MAX_IMAGE_BYTES) {
+
+                        input.close();
+
+                        throw new Exception(
+                                "Fotoğraf fazla büyük. Daha düşük çözünürlükle tekrar dene."
+                        );
+                    }
+
+                    output.write(
+                            buffer,
+                            0,
+                            read
+                    );
+                }
+
+                input.close();
+
+                pendingImage =
+                        "data:image/jpeg;base64," +
+                                Base64.encodeToString(
+                                        output.toByteArray(),
+                                        Base64.NO_WRAP
+                                );
+
+                pendingFileName =
+                        "kamera.jpg";
+
+                sendJs(
+                        "window.onFilePicked(" +
+                                JSONObject.quote(
+                                        "📷 Kamera fotoğrafı"
+                                ) +
+                                ");"
+                );
+
+            } catch (Exception e) {
+
+                clearPendingAttachment();
+
+                sendJs(
+                        "window.onFileError(" +
+                                JSONObject.quote(
+                                        e.getMessage()
+                                ) +
+                                ");"
+                );
+            }
+
+        }).start();
+    }
+
+    private void handleFile(
+            Uri uri
+    ) {
 
         new Thread(() -> {
 
@@ -366,11 +641,10 @@ public class MainActivity extends Activity {
                 byte[] bytes =
                         output.toByteArray();
 
-                pendingFileName = name;
+                pendingFileName =
+                        name;
 
                 if (isImage) {
-
-                    pendingImageMime = mime;
 
                     pendingImage =
                             "data:" +
@@ -400,12 +674,15 @@ public class MainActivity extends Activity {
                                 "\n\n[Dosyanın devamı boyut sınırı nedeniyle kesildi.]";
                     }
 
-                    pendingFileText = text;
+                    pendingFileText =
+                            text;
                 }
 
                 sendJs(
                         "window.onFilePicked(" +
-                                JSONObject.quote(name) +
+                                JSONObject.quote(
+                                        name
+                                ) +
                                 ");"
                 );
 
@@ -425,10 +702,15 @@ public class MainActivity extends Activity {
         }).start();
     }
 
-    private String getFileName(Uri uri) {
+    private String getFileName(
+            Uri uri
+    ) {
 
-        String result = "dosya";
-        Cursor cursor = null;
+        String result =
+                "dosya";
+
+        Cursor cursor =
+                null;
 
         try {
 
@@ -447,11 +729,11 @@ public class MainActivity extends Activity {
 
                 int index =
                         cursor.getColumnIndex(
-                                OpenableColumns
-                                        .DISPLAY_NAME
+                                OpenableColumns.DISPLAY_NAME
                         );
 
                 if (index >= 0) {
+
                     result =
                             cursor.getString(
                                     index
@@ -503,9 +785,12 @@ public class MainActivity extends Activity {
                     text = "";
                 }
 
-                text = text.trim();
+                text =
+                        text.trim();
 
-                if (text.length() > 8000) {
+                if (text.length() >
+                        8000) {
+
                     text =
                             text.substring(
                                     0,
@@ -513,12 +798,6 @@ public class MainActivity extends Activity {
                             );
                 }
 
-                /*
-                 * WEB MODU:
-                 * Dosya ve base64 resim kesinlikle
-                 * web isteğine eklenmiyor.
-                 * Böylece 413 riski büyük ölçüde azalır.
-                 */
                 if (webSearch) {
 
                     callTextModel(
@@ -531,9 +810,6 @@ public class MainActivity extends Activity {
                     return;
                 }
 
-                /*
-                 * Resim varsa vision modeli.
-                 */
                 if (!pendingImage.isEmpty()) {
 
                     callVisionModel(
@@ -544,10 +820,8 @@ public class MainActivity extends Activity {
                     return;
                 }
 
-                /*
-                 * Normal metin + küçük metin dosyası.
-                 */
-                String finalText = text;
+                String finalText =
+                        text;
 
                 if (!pendingFileText.isEmpty()) {
 
@@ -616,49 +890,6 @@ public class MainActivity extends Activity {
                 model
         );
 
-        /*
-         * Kaynaklı web.
-         */
-        if (webSearch) {
-
-            body.put(
-                    "citation_options",
-                    "enabled"
-            );
-
-            JSONObject tools =
-                    new JSONObject();
-
-            JSONArray enabledTools =
-                    new JSONArray();
-
-            enabledTools.put(
-                    "web_search"
-            );
-
-            enabledTools.put(
-                    "visit_website"
-            );
-
-            tools.put(
-                    "enabled_tools",
-                    enabledTools
-            );
-
-            JSONObject compoundCustom =
-                    new JSONObject();
-
-            compoundCustom.put(
-                    "tools",
-                    tools
-            );
-
-            body.put(
-                    "compound_custom",
-                    compoundCustom
-            );
-        }
-
         JSONArray messages =
                 new JSONArray();
 
@@ -677,8 +908,8 @@ public class MainActivity extends Activity {
                     "Sen GökAI adlı Türkçe yapay zekasın. " +
                             "Bu istek WEB MODUNDADIR. " +
                             "Güncel bilgiler için web araması kullan. " +
-                            "Tahmin ederek eski bilgi verme. " +
-                            "Cevabın sonunda kullandığın kaynakları açıkça belirt."
+                            "Eski bilgiyi güncelmiş gibi verme. " +
+                            "Mümkün olduğunda cevap sonunda kaynakları belirt."
             );
 
         } else {
@@ -691,7 +922,9 @@ public class MainActivity extends Activity {
             );
         }
 
-        messages.put(system);
+        messages.put(
+                system
+        );
 
         JSONObject user =
                 new JSONObject();
@@ -706,7 +939,9 @@ public class MainActivity extends Activity {
                 text
         );
 
-        messages.put(user);
+        messages.put(
+                user
+        );
 
         body.put(
                 "messages",
@@ -721,9 +956,15 @@ public class MainActivity extends Activity {
 
         String answer =
                 response
-                        .getJSONArray("choices")
-                        .getJSONObject(0)
-                        .getJSONObject("message")
+                        .getJSONArray(
+                                "choices"
+                        )
+                        .getJSONObject(
+                                0
+                        )
+                        .getJSONObject(
+                                "message"
+                        )
                         .optString(
                                 "content",
                                 "Cevap alınamadı."
@@ -731,7 +972,9 @@ public class MainActivity extends Activity {
 
         clearPendingAttachment();
 
-        sendAnswer(answer);
+        sendAnswer(
+                answer
+        );
     }
 
     private void callVisionModel(
@@ -764,7 +1007,9 @@ public class MainActivity extends Activity {
                         "Gönderilen görseli dikkatlice incele ve soruya göre cevap ver."
         );
 
-        messages.put(system);
+        messages.put(
+                system
+        );
 
         JSONObject user =
                 new JSONObject();
@@ -818,15 +1063,22 @@ public class MainActivity extends Activity {
                 imageUrl
         );
 
-        content.put(textPart);
-        content.put(imagePart);
+        content.put(
+                textPart
+        );
+
+        content.put(
+                imagePart
+        );
 
         user.put(
                 "content",
                 content
         );
 
-        messages.put(user);
+        messages.put(
+                user
+        );
 
         body.put(
                 "messages",
@@ -841,9 +1093,15 @@ public class MainActivity extends Activity {
 
         String answer =
                 response
-                        .getJSONArray("choices")
-                        .getJSONObject(0)
-                        .getJSONObject("message")
+                        .getJSONArray(
+                                "choices"
+                        )
+                        .getJSONObject(
+                                0
+                        )
+                        .getJSONObject(
+                                "message"
+                        )
                         .optString(
                                 "content",
                                 "Görsel incelenemedi."
@@ -851,7 +1109,9 @@ public class MainActivity extends Activity {
 
         clearPendingAttachment();
 
-        sendAnswer(answer);
+        sendAnswer(
+                answer
+        );
     }
 
     private JSONObject postGroq(
@@ -874,17 +1134,13 @@ public class MainActivity extends Activity {
 
         connection.setRequestProperty(
                 "Authorization",
-                "Bearer " + apiKey
+                "Bearer " +
+                        apiKey
         );
 
         connection.setRequestProperty(
                 "Content-Type",
                 "application/json"
-        );
-
-        connection.setRequestProperty(
-                "Groq-Model-Version",
-                "latest"
         );
 
         connection.setConnectTimeout(
@@ -895,16 +1151,16 @@ public class MainActivity extends Activity {
                 90000
         );
 
-        connection.setDoOutput(true);
+        connection.setDoOutput(
+                true
+        );
 
         byte[] requestBytes =
                 body.toString()
-                        .getBytes("UTF-8");
+                        .getBytes(
+                                "UTF-8"
+                        );
 
-        /*
-         * İstek aşırı büyürse Groq'a göndermeden
-         * burada durduruyoruz.
-         */
         if (requestBytes.length >
                 5 * 1024 * 1024) {
 
@@ -914,14 +1170,19 @@ public class MainActivity extends Activity {
         }
 
         OutputStream os =
-                connection.getOutputStream();
+                connection
+                        .getOutputStream();
 
-        os.write(requestBytes);
+        os.write(
+                requestBytes
+        );
+
         os.flush();
         os.close();
 
         int code =
-                connection.getResponseCode();
+                connection
+                        .getResponseCode();
 
         InputStream responseStream;
 
@@ -929,12 +1190,14 @@ public class MainActivity extends Activity {
                 code < 300) {
 
             responseStream =
-                    connection.getInputStream();
+                    connection
+                            .getInputStream();
 
         } else {
 
             responseStream =
-                    connection.getErrorStream();
+                    connection
+                            .getErrorStream();
         }
 
         BufferedReader reader =
@@ -952,10 +1215,13 @@ public class MainActivity extends Activity {
         while ((line =
                 reader.readLine()) != null) {
 
-            result.append(line);
+            result.append(
+                    line
+            );
         }
 
         reader.close();
+
         connection.disconnect();
 
         if (code >= 200 &&
@@ -984,7 +1250,6 @@ public class MainActivity extends Activity {
     private void clearPendingAttachment() {
 
         pendingImage = "";
-        pendingImageMime = "";
         pendingFileText = "";
         pendingFileName = "";
     }
@@ -1032,4 +1297,4 @@ public class MainActivity extends Activity {
 
         super.onDestroy();
     }
-    }
+                            }
